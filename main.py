@@ -20,8 +20,9 @@ import asyncio
 import json
 import logging
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from config import REPEAT_ALERT_EVERY_N_CHECKS
 from game_tester import run_full_test_suite
@@ -36,10 +37,17 @@ logging.basicConfig(
 logger = logging.getLogger("main")
 
 STATE_FILE = Path(__file__).parent / ".agent_state.json"
+TR_TZ = ZoneInfo("Europe/Istanbul")
 
 
 def _now_str() -> str:
-    return datetime.now(timezone.utc).astimezone().strftime("%d.%m.%Y %H:%M")
+    # v7 (hata düzeltmesi — kullanıcı talebi): ÖNCEDEN burada argümansız
+    # .astimezone() çağrılıyordu — bu, sunucunun KENDİ yerel saat dilimine
+    # çevirir. GitHub Actions çalıştırıcıları UTC'de çalıştığı için bu
+    # çevirme hiçbir şey yapmıyordu (UTC -> UTC) ve mesajdaki saat, gerçek
+    # Türkiye saatinden (UTC+3) tam 3 saat geride görünüyordu. Artık
+    # açıkça Europe/Istanbul saat dilimine çevriliyor.
+    return datetime.now(TR_TZ).strftime("%d.%m.%Y %H:%M")
 
 
 def load_state() -> dict:
