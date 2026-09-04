@@ -1,0 +1,68 @@
+name: CEODESK Test Ajanı
+
+# Kullanıcı talebi: Render'ın ücretsiz Background Worker seçeneği
+# olmadığı ortaya çıkınca (en ucuz plan $7/ay), tamamen ücretsiz olan
+# GitHub Actions'a geçildi. Zamanlama burada (cron), sürekli açık bir
+# sunucu YOK — GitHub her tetiklemede taze bir makine açıp scripti
+# çalıştırıp kapatıyor.
+#
+# Sıklığı değiştirmek istersen: aşağıdaki "cron" satırındaki dakikayı
+# değiştir (örn. her 10 dakikada bir için '*/10 * * * *'). GitHub Actions
+# zamanlanmış görevlerde 5 dakikanın altına inmeyi önermez ve yoğun
+# saatlerde birkaç dakikalık gecikme olabilir — bu, ücretsiz olmanın kabul
+# edilebilir bir bedeli.
+on:
+  schedule:
+    - cron: '*/20 * * * *'
+  workflow_dispatch: {}  # GitHub'ın Actions sekmesinden elle "Run workflow" ile de tetiklenebilir
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Playwright tarayıcı önbelleğini geri yükle
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      # Ajanın "spam önleme" durumu (.agent_state.json) — çalıştırmalar
+      # arasında hafıza sağlamak için. Anahtar her çalıştırmada BİLEREK
+      # benzersiz (run_id içeriyor) ki her seferinde yeni bir kayıt
+      # kaydedilsin; restore-keys ile bir önceki çalıştırmanın durumu
+      # geri yükleniyor. Bu, GitHub Actions'ta "artan durumu" saklamanın
+      # standart yöntemidir.
+      - name: Durum dosyasını geri yükle
+        uses: actions/cache@v4
+        with:
+          path: .agent_state.json
+          key: agent-state-${{ github.run_id }}
+          restore-keys: |
+            agent-state-
+
+      - name: Bağımlılıkları kur
+        run: pip install -r requirements.txt
+
+      - name: Playwright Chromium kur (önbellekte yoksa)
+        run: playwright install --with-deps chromium
+
+      - name: Testi çalıştır
+        env:
+          SITE_URL: ${{ secrets.SITE_URL }}
+          TEST_COMPANY_NAME: ${{ secrets.TEST_COMPANY_NAME }}
+          TEST_COMPANY_PASSWORD: ${{ secrets.TEST_COMPANY_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ADMIN_PANEL_SECRET: ${{ secrets.ADMIN_PANEL_SECRET }}
+          VERCEL_API_TOKEN: ${{ secrets.VERCEL_API_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: python main.py
