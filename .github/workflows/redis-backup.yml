@@ -1,0 +1,38 @@
+name: CEODESK Redis Yedekleme
+
+# Kullanıcı talebi: Upstash'in yerleşik yedeklemesi (hem otomatik hem
+# manuel) ücretsiz planda kapalı — bunun yerine tamamen ücretsiz olan
+# GitHub Actions ile kendi yedekleme sistemimiz. Günde bir kez çalışır,
+# sonucu GitHub Actions "artifact" olarak saklar (git geçmişine COMMIT
+# ETMEZ — hem depoyu şişirmez hem de kişisel veriyi süresiz saklamamak
+# için otomatik olarak 30 gün sonra silinir).
+on:
+  schedule:
+    - cron: '0 3 * * *'  # her gün UTC 03:00 (TR saatiyle gece 06:00)
+  workflow_dispatch: {}
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Bağımlılıkları kur
+        run: pip install redis
+
+      - name: Yedekle
+        env:
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+        run: python backup.py
+
+      - name: Yedeği artifact olarak yükle
+        uses: actions/upload-artifact@v4
+        with:
+          name: redis-backup
+          path: redis-backup-*.json
+          retention-days: 30
