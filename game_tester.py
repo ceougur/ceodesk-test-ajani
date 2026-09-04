@@ -183,28 +183,40 @@ async def _register_test_company_once(page: Page, result: TestRunResult) -> bool
         await page.fill("#f-sifre-tekrar", TEST_COMPANY_PASSWORD)
         await page.click("#ceo-koltuk-btn")
         await page.wait_for_timeout(2500)
+
+        # DOĞRULAMA NOTU (sandbox'ta bulunan gerçek bir zayıflık): sadece
+        # ".pill-company" görünür mü diye bakmak YETERSİZ — bu, sunucu
+        # kaydı gerçekten başarılı olmasa bile (ör. bu isim zaten
+        # kayıtlıysa) İSTEMCİ TARAFINDA true dönebiliyor (Game.baslat
+        # içinde misafirModu=false önce ayarlanıyor, kayıt API'si başarısız
+        # olsa bile). Bu yüzden sayfayı MUTLAKA bir kez yeniden yükleyip
+        # sunucudaki oturum çerezinin/kaydın gerçekten kalıcı olduğunu
+        # doğruluyoruz — yalnızca istemci belleğine değil.
+        await page.wait_for_timeout(1500)
+        await page.reload(wait_until="domcontentloaded")
+        await page.wait_for_timeout(2000)
         ok = await page.locator(".pill-company").count() > 0
+
         if not ok:
-            # BULGU: Kayıt sonrası çok kısa bir an için "Hesap silindi/
-            # erişim kısıtlaması" ekranı görülebiliyor, ardından kendiliğinden
-            # düzelebiliyor — muhtemelen kayıt sonrası erişim kontrolü
-            # (_checkBanStatus/_startAccessWatch) ile oturum çerezinin
-            # oturması arasında bir zamanlama meselesi. Kalıcı mı geçici mi
-            # ayırt etmek için sayfayı bir kez yeniden yükleyip tekrar
-            # bakıyoruz; hâlâ kilitliyse bu GERÇEK bir bulgu olarak raporlanır.
+            # Kayıt sonrası çok kısa bir an için "Hesap silindi/erişim
+            # kısıtlaması" ekranı görülebiliyor, ardından kendiliğinden
+            # düzelebiliyor (bkz. KURULUM_REHBERI.md bilinen bulgu) — bir
+            # kez daha yeniden yükleyip kalıcı mı geçici mi ayırt ediyoruz.
             await page.wait_for_timeout(2000)
             await page.reload(wait_until="domcontentloaded")
             await page.wait_for_timeout(1500)
             ok = await page.locator(".pill-company").count() > 0
             if not ok:
-                lock_text = await page.locator(".ban-notice-card").text_content()
+                lock_text = ""
+                if await page.locator(".ban-notice-card").count() > 0:
+                    lock_text = await page.locator(".ban-notice-card").text_content()
                 result.steps.append(StepResult(
                     "Test şirketi kaydı (ilk çalıştırma)", False,
                     detail=(
-                        "Kayıt sonrası hesap kilitli görünüyor (yeniden "
-                        f"yükleme sonrası da düzelmedi): {(lock_text or '').strip()[:200]}. "
-                        "Bu, oyunun erişim kontrolünde araştırılması gereken "
-                        "ayrı bir bulgu olabilir."
+                        "Kayıt sonrası yeniden yüklemede test şirketi oturumu "
+                        "doğrulanamadı. Olası sebep: TEST_COMPANY_NAME zaten "
+                        "başka bir yerde (ör. elle) kayıt edilmiş olabilir — "
+                        f"farklı bir isim deneyin. Kilit ekranı metni: {(lock_text or 'yok').strip()[:200]}"
                     ),
                     screenshot=await _screenshot(page),
                 ))

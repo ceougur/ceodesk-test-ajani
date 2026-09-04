@@ -1,10 +1,15 @@
 """
 CEODESK Test + İzleme Ajanı — ana giriş noktası.
 
-Bu dosya Render'da "Background Worker" olarak çalıştırılmak üzere
-tasarlandı: sonsuz bir döngüde belirli aralıklarla (config.py'daki
-TEST_INTERVAL_MINUTES) siteyi test eder, Vercel deployment durumunu
-kontrol eder ve sorun bulursa Telegram'a bildirim gönderir.
+MİMARİ (GitHub Actions — kullanıcı talebi, Render'ın ücretsiz katmanı
+olmadığı ortaya çıkınca buna geçildi): bu dosya SÜREKLİ ÇALIŞAN bir süreç
+DEĞİLDİR — GitHub Actions'ın kendi zamanlayıcısı (bkz.
+.github/workflows/test-agent.yml, varsayılan her 20 dakikada bir) bu
+scripti TEK SEFERLİK çalıştırıp kapatır. Bu yüzden art arda kaç kontrolde
+aynı hatanın bildirildiğini (spam önleme) hatırlamak için bir Python
+değişkeni YETMEZ — her çalıştırma sıfırdan bir ortamda başlar. Bunun
+yerine küçük bir durum dosyası (.agent_state.json) kullanılıyor; bu dosya
+GitHub Actions'ın "cache" adımıyla çalıştırmalar arasında korunuyor.
 
 FAZ 1 — bu sürüm SADECE test eder ve bildirir; koda dokunmaz, otomatik
 merge/deploy YAPMAZ. "Self-healing" (otomatik yama + PR) katmanı — sizinle
@@ -12,11 +17,13 @@ konuşulan güvenlik nedeniyle — ayrı, sonraki bir aşamada ve daima GERÇEK
 bir GitHub PR incelemesi gerektirecek şekilde eklenecek.
 """
 import asyncio
+import json
 import logging
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
-from config import TEST_INTERVAL_MINUTES, REPEAT_ALERT_EVERY_N_CHECKS
+from config import REPEAT_ALERT_EVERY_N_CHECKS
 from game_tester import run_full_test_suite
 from vercel_monitor import get_latest_deployment_status, is_configured as vercel_configured
 from telegram_notify import send_message, send_photo, send_startup_message
@@ -28,33 +35,50 @@ logging.basicConfig(
 )
 logger = logging.getLogger("main")
 
-# Ardışık kaç kontrolde bu sorunun zaten bildirildiğini tutar — aynı hata
-# için her turda yeniden mesaj atıp spam yapmamak içindir.
-_ongoing_problem_streak = 0
-_last_vercel_state = None
+STATE_FILE = Path(__file__).parent / ".agent_state.json"
 
 
 def _now_str() -> str:
     return datetime.now(timezone.utc).astimezone().strftime("%d.%m.%Y %H:%M")
 
 
+def load_state() -> dict:
+    if not STATE_FILE.exists():
+        return {"ongoing_problem_streak": 0, "last_vercel_state": None, "first_run_done": False}
+    try:
+        return json.loads(STATE_FILE.read_text())
+    except (json.JSONDecodeError, OSError):
+        logger.warning("Durum dosyası okunamadı, sıfırdan başlanıyor.")
+        return {"ongoing_problem_streak": 0, "last_vercel_state": None, "first_run_done": False}
+
+
+def save_state(state: dict):
+    try:
+        STATE_FILE.write_text(json.dumps(state))
+    except OSError:
+        logger.exception("Durum dosyası yazılamadı — bir sonraki çalıştırma spam-önleme "
+                          "hafızasını kaybedebilir, kritik değil.")
+
+
 async def run_once():
-    global _ongoing_problem_streak, _last_vercel_state
+    state = load_state()
+
+    if not state.get("first_run_done"):
+        send_startup_message()
+        state["first_run_done"] = True
 
     logger.info("Test turu başlıyor…")
     result = await run_full_test_suite()
 
     if result.all_ok:
-        if _ongoing_problem_streak > 0:
+        if state.get("ongoing_problem_streak", 0) > 0:
             send_message(f"✅ <b>Sorun düzeldi.</b> Tüm testler geçti. ({_now_str()})")
-        _ongoing_problem_streak = 0
+        state["ongoing_problem_streak"] = 0
         logger.info("Tüm testler başarılı.")
     else:
-        _ongoing_problem_streak += 1
-        should_notify = (
-            _ongoing_problem_streak == 1
-            or _ongoing_problem_streak % REPEAT_ALERT_EVERY_N_CHECKS == 0
-        )
+        state["ongoing_problem_streak"] = state.get("ongoing_problem_streak", 0) + 1
+        streak = state["ongoing_problem_streak"]
+        should_notify = streak == 1 or streak % REPEAT_ALERT_EVERY_N_CHECKS == 0
         logger.warning("%d test başarısız.", len(result.failed_steps))
         if should_notify:
             lines = [f"🔴 <b>CEODESK Test Ajanı — Hata Tespit Edildi</b> ({_now_str()})", ""]
@@ -62,9 +86,8 @@ async def run_once():
                 lines.append(f"<b>Adım:</b> {step.name}")
                 lines.append(f"<b>Sebep:</b> {step.detail}")
                 lines.append("")
-            lines.append(f"Bu sorun art arda {_ongoing_problem_streak}. kontrolde de görüldü.")
+            lines.append(f"Bu sorun art arda {streak}. kontrolde de görüldü.")
             send_message("\n".join(lines))
-            # İlk hata bulunan adımın ekran görüntüsünü de gönder.
             for step in result.failed_steps:
                 if step.screenshot:
                     send_photo(step.screenshot, caption=f"Hata anı: {step.name}")
@@ -72,7 +95,7 @@ async def run_once():
 
     if vercel_configured():
         status = get_latest_deployment_status()
-        if status and status["state"] != _last_vercel_state:
+        if status and status["state"] != state.get("last_vercel_state"):
             if status["state"] in ("ERROR", "CANCELED"):
                 send_message(
                     f"🔴 <b>Vercel Deployment Sorunu</b>\n"
@@ -80,20 +103,19 @@ async def run_once():
                     f"URL: {status['url']}\n"
                     f"({_now_str()})"
                 )
-            _last_vercel_state = status["state"]
+            state["last_vercel_state"] = status["state"]
+
+    save_state(state)
 
 
-async def main_loop():
-    send_startup_message()
-    while True:
-        try:
-            await run_once()
-        except Exception as exc:  # noqa: BLE001 - döngü asla tamamen çökmemeli
-            logger.exception("Beklenmeyen ajan hatası")
-            send_message(f"⚠️ Ajanın kendisinde beklenmeyen bir hata oluştu: {exc}")
-        logger.info("Sıradaki tur için %d dakika bekleniyor…", TEST_INTERVAL_MINUTES)
-        await asyncio.sleep(TEST_INTERVAL_MINUTES * 60)
+async def main():
+    try:
+        await run_once()
+    except Exception as exc:  # noqa: BLE001 - script asla sessizce çökmemeli
+        logger.exception("Beklenmeyen ajan hatası")
+        send_message(f"⚠️ Ajanın kendisinde beklenmeyen bir hata oluştu: {exc}")
+        raise  # GitHub Actions çalıştırmayı "başarısız" (kırmızı) işaretlesin
 
 
 if __name__ == "__main__":
-    asyncio.run(main_loop())
+    asyncio.run(main())
