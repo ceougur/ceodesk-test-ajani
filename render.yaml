@@ -1,0 +1,37 @@
+# Render.com "Blueprint" dosyası — KURULUM_REHBERI.md'de anlatıldığı gibi
+# bu dosyayı GitHub deponuza koyup Render'da "New > Blueprint" ile
+# bağladığınızda otomatik olarak doğru ayarlarla bir Background Worker
+# oluşturur. Ortam değişkenlerini (Environment) Render panelinden elle
+# gireceksiniz — .env dosyası sunucuya YÜKLENMEZ, sadece yerel test içindir.
+services:
+  - type: worker
+    name: ceodesk-test-ajani
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt && playwright install --with-deps chromium"
+    startCommand: "python main.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: SITE_URL
+        sync: false
+      - key: TEST_COMPANY_NAME
+        sync: false
+      - key: TEST_COMPANY_PASSWORD
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHAT_ID
+        sync: false
+      - key: ADMIN_PANEL_SECRET
+        sync: false
+      - key: VERCEL_API_TOKEN
+        sync: false
+      - key: VERCEL_TEAM_ID
+        sync: false
+      - key: VERCEL_PROJECT_ID
+        sync: false
+      - key: TEST_INTERVAL_MINUTES
+        value: "20"
+      - key: REPEAT_ALERT_EVERY_N_CHECKS
+        value: "6"
