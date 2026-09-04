@@ -83,6 +83,45 @@ mesajı orada görünecektir (çoğunlukla eksik/yanlış bir Secret'tır).
 
 ---
 
+## Adım 6 — Otomatik Redis Yedeklemesi (yeni)
+
+Upstash'in ücretsiz planında yerleşik yedekleme (hem otomatik hem manuel)
+kapalı olduğu için, aynı GitHub Actions altyapısıyla kendi ücretsiz
+yedekleme sistemimiz kuruldu — her gün gece (TR saatiyle 06:00) otomatik
+çalışır.
+
+1. **Yeni bir Secret ekle**: aynı `ceodesk-test-ajani` deposunda Settings
+   → Secrets and variables → Actions → New repository secret.
+   - Name: `REDIS_URL`
+   - Value: Vercel'de projenin (ceonun-masasi) Settings → Environment
+     Variables sekmesinden `REDIS_URL` değerini kopyala-yapıştır (bu,
+     Upstash'in gerçek bağlantı adresi — asıl production verisine erişim
+     sağladığı için normal secret'lardan daha hassas, kimseyle paylaşma).
+2. **Doğrula**: Actions sekmesinde "CEODESK Redis Yedekleme" workflow'unu
+   bul, "Run workflow" ile elle bir kez tetikle. Yeşil ✓ olunca çalıştırma
+   sayfasına gir, en altta **Artifacts** bölümünde `redis-backup` adlı
+   bir dosya göreceksin — indirilebilir bir zip, içinde tarihli bir JSON
+   yedek dosyası var.
+3. **Yedekler 30 gün** sonra otomatik silinir (hem depolama hem de
+   gereksiz yere uzun süre kişisel veri saklamamak için — KVKK'nın veri
+   minimizasyonu ilkesiyle uyumlu).
+
+### Bir felaket anında geri yükleme
+
+1. İlgili GitHub Actions çalıştırmasından (ya da en son başarılı
+   çalıştırmadan) `redis-backup` artifact'ini indir, zip'i aç.
+2. Bilgisayarında (Python kuruluysa) şu komutu çalıştır:
+   ```
+   REDIS_URL="<Vercel'deki gerçek Redis adresi>" python restore.py redis-backup-....json --confirm
+   ```
+3. `--confirm` OLMADAN çalıştırırsan sadece önizleme yapar, hiçbir şey
+   yazmaz — önce onsuz deneyip kaç anahtar geri yükleneceğini görmen
+   önerilir.
+
+**Önemli**: `restore.py` YIKICI bir işlemdir — aynı isimli anahtarların
+üzerine yazar. Sadece gerçek bir veri kaybı durumunda, `REDIS_URL`'in
+doğru (hedeflediğin) veritabanını gösterdiğinden emin olarak kullan.
+
 ## Sık Sorulan Sorular
 
 **"Ajan bir hata bulursa ne olur?"**
