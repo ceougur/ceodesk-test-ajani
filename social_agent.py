@@ -34,6 +34,18 @@ import json
 SITE_URL = "https://ceodesk.net"
 POLLINATIONS_IMAGE_BASE = "https://image.pollinations.ai/prompt"
 
+# v3 (kullanıcı talebi — "oyunumuzdaki [gerçek] görüntülerden neden
+# paylaşmıyorsun?"): AI görseli tek başına denetimsiz/öngörülemez olduğu
+# kanıtlandı (bkz. v2 notu). Bu liste, oyunun GERÇEK ekran görüntülerini
+# (ve kullanıcının kendi onayladığı tanıtım görselini) içeriyor — bunlar
+# hiçbir ağ isteği gerektirmez (repo içinde hazır dururlar), bu yüzden
+# %100 güvenilirdir ve her zaman markaya birebir uygundur.
+REAL_ASSET_IMAGES = [
+    "assets/screenshots/factory-hero.jpg",
+    "assets/screenshots/kurulus-ekrani.jpg",
+    "assets/screenshots/tedarik-zinciri.jpg",
+]
+
 # ---------------------------------------------------------------------------
 # GÖRSEL PROMPT HAVUZU (İngilizce — Flux modeli İngilizce prompt'larla çok
 # daha iyi sonuç veriyor). Kullanıcı talebi: "reklam hissi" ağırlıklı, yani
@@ -41,27 +53,37 @@ POLLINATIONS_IMAGE_BASE = "https://image.pollinations.ai/prompt"
 # logo/yazı İSTENMEDİ — AI görsel modelleri metni okunaklı render etmekte
 # çok kötü; asıl mesaj (marka adı, CTA) Telegram'a giden CAPTION'da veriliyor.
 # ---------------------------------------------------------------------------
+
+# v2 (kullanıcı talebi — hata düzeltmesi, GERÇEK CANLI ÇIKTIDA GÖRÜLDÜ):
+# İlk listedeki "makro/soyut kavram" tarzı prompt'lar (ör. "birbirine geçen
+# dişliler") görsel modelinde markayla hiç alakası olmayan, soyut bir
+# desene/mandalaya dönüştü — kanıtlandı, Telegram'a gelen gerçek görsel
+# buydu. Bu YENİ liste, HEPSİ net bir OYUNCAK-TARZI İŞ İNSANI FİGÜRÜ veya
+# kolayca tanınan somut bir nesne (taç, kasa, gemi, harita) içerecek
+# şekilde yeniden yazıldı — modelin soyut/sanatsal yoruma kaçma riskini
+# azaltmak için her prompt'un sonuna "clear readable composition, not
+# abstract art" vurgusu da eklendi. Yine de: ücretsiz, denetimsiz bir AI
+# servisi olduğu için %100 garanti YOK — Telegram'a düşen her görseli
+# paylaşmadan önce mutlaka gözle kontrol et.
 IMAGE_PROMPTS = [
-    "cinematic 3D render, toy-like miniature businessman figure in a hard hat and orange safety vest standing confidently in a golden-lit factory, warm gold and dark navy color palette, dramatic rim lighting, premium advertisement style, ultra detailed, octane render",
-    "epic wide shot of a miniature toy factory full of tiny worker figures in yellow hard hats operating a giant polished machine, golden hour lighting, dark moody background, luxury brand advertisement aesthetic, highly detailed 3D render",
-    "close-up cinematic shot of a golden trophy shaped like a crown sitting on a CEO's dark wooden desk, soft golden bokeh lights in background, premium business advertisement photography style, ultra sharp, 8k",
-    "3D render of a glowing world map hologram with golden trade routes connecting glowing cities, dark background, futuristic business technology aesthetic, cinematic lighting, advertisement quality",
-    "miniature toy businessman figure climbing a golden staircase made of stacked coins, dark dramatic background, motivational advertisement style, cinematic rim light, ultra detailed 3D render",
-    "a small toy-like factory worker figure pointing at a glowing holographic chart showing rising golden bars, dark navy background, premium tech advertisement look, cinematic depth of field",
-    "cinematic macro shot of golden gears and cogs interlocking, warm amber lighting, dark background, industrial luxury advertisement style, ultra detailed render",
-    "toy-like 3D figure of a confident businessman in a suit standing on top of a stack of golden shipping containers at sunset, cinematic wide shot, premium advertisement aesthetic",
-    "close up of a golden crown resting on a stack of blueprint papers on a dark wooden desk, dramatic side lighting, luxury business advertisement photography, ultra sharp detail",
-    "wide cinematic shot of a futuristic factory production line glowing with warm golden light, tiny toy-like worker figures assembling products, dark atmospheric background, premium advertisement render",
-    "3D toy figure of a businessman shaking hands with a golden holographic globe, dark background with golden particle effects, premium corporate advertisement style, cinematic lighting",
-    "golden light bulb made of interlocking gears floating above a dark factory floor, tiny toy worker figures looking up at it, cinematic advertisement style, ultra detailed 3D render",
-    "toy-like 3D figures of workers loading golden shipping crates onto a cargo ship at a moody dark harbor at night, warm amber dock lights, cinematic wide advertisement shot, ultra detailed",
-    "close-up 3D render of a golden key turning in an ornate lock shaped like a factory gate, dark background, dramatic warm lighting, premium business advertisement style",
-    "miniature toy CEO figure standing at the top of a golden mountain made of stacked gold bars, dark dramatic sky, cinematic wide shot, motivational advertisement aesthetic, ultra detailed 3D render",
-    "3D render of a golden handshake emerging from two glowing holographic screens over a dark control room, cinematic lighting, premium tech-business advertisement style",
-    "wide cinematic shot of tiny toy-like figures working at glowing control panels inside a dark futuristic command center, golden accent lighting, premium advertisement render, ultra detailed",
-    "close-up cinematic render of a golden compass resting on an old world map, warm dramatic lighting, dark vignette background, premium adventure-business advertisement aesthetic",
-    "3D toy figure of a businessman planting a small golden flag on top of a stack of golden coins shaped like a mountain, dark background, cinematic rim lighting, advertisement quality render",
-    "epic wide shot of a golden bridge made of light connecting two miniature toy-like city skylines at dusk, dark navy sky, cinematic advertisement style, ultra detailed 3D render",
+    "cinematic 3D render, toy-like miniature businessman figure in a hard hat and orange safety vest standing confidently in a golden-lit factory, warm gold and dark navy color palette, dramatic rim lighting, premium advertisement style, ultra detailed, clear readable composition, not abstract art",
+    "epic wide shot of a miniature toy factory full of tiny worker figures in yellow hard hats operating a giant polished machine, golden hour lighting, dark moody background, luxury brand advertisement aesthetic, highly detailed 3D render, clear readable composition, not abstract art",
+    "close-up cinematic shot of a golden trophy shaped like a crown sitting on a CEO's dark wooden desk, soft golden bokeh lights in background, premium business advertisement photography style, ultra sharp, 8k, clear readable composition, not abstract art",
+    "3D render of a tiny toy-like businessman figure standing in front of a glowing world map hologram with golden trade routes connecting glowing cities, dark background, futuristic business technology aesthetic, cinematic lighting, clear readable composition, not abstract art",
+    "miniature toy businessman figure climbing a golden staircase made of stacked coins, dark dramatic background, motivational advertisement style, cinematic rim light, ultra detailed 3D render, clear readable composition, not abstract art",
+    "a small toy-like factory worker figure pointing at a glowing holographic chart showing rising golden bars, dark navy background, premium tech advertisement look, cinematic depth of field, clear readable composition, not abstract art",
+    "toy-like 3D figure of a confident businessman in a suit standing on top of a stack of golden shipping containers at sunset, cinematic wide shot, premium advertisement aesthetic, clear readable composition, not abstract art",
+    "close up of a golden crown resting on a stack of blueprint papers on a dark wooden desk, dramatic side lighting, luxury business advertisement photography, ultra sharp detail, clear readable composition, not abstract art",
+    "wide cinematic shot of a futuristic factory production line glowing with warm golden light, tiny toy-like worker figures assembling products, dark atmospheric background, premium advertisement render, clear readable composition, not abstract art",
+    "3D toy figure of a businessman shaking hands with another toy-like businessman figure in front of a glowing golden holographic globe, dark background with golden particle effects, premium corporate advertisement style, cinematic lighting, clear readable composition, not abstract art",
+    "toy-like 3D figures of workers loading golden shipping crates onto a cargo ship at a moody dark harbor at night, warm amber dock lights, cinematic wide advertisement shot, ultra detailed, clear readable composition, not abstract art",
+    "miniature toy CEO figure standing at the top of a golden mountain made of stacked gold bars, dark dramatic sky, cinematic wide shot, motivational advertisement aesthetic, ultra detailed 3D render, clear readable composition, not abstract art",
+    "wide cinematic shot of tiny toy-like businessman figures working together at glowing control panels inside a dark futuristic command center, golden accent lighting, premium advertisement render, ultra detailed, clear readable composition, not abstract art",
+    "3D toy figure of a businessman planting a small golden flag on top of a stack of golden coins shaped like a mountain, dark background, cinematic rim lighting, advertisement quality render, clear readable composition, not abstract art",
+    "toy-like 3D businessman figure standing confidently in front of a large golden skyscraper building, dark navy sky, warm rim lighting, premium corporate advertisement style, ultra detailed 3D render, clear readable composition, not abstract art",
+    "miniature toy businessman figure holding a golden briefcase, standing on a stack of golden coins, dark dramatic background, cinematic advertisement lighting, ultra detailed 3D render, clear readable composition, not abstract art",
+    "toy-like 3D figure of a businessman looking through a large golden telescope pointed at a glowing city skyline at night, dark background, premium advertisement aesthetic, ultra detailed render, clear readable composition, not abstract art",
+    "wide shot of a toy-like businessman figure standing proudly next to a large golden rocket ready for launch, dark dramatic sky with warm rim lighting, premium advertisement style, ultra detailed 3D render, clear readable composition, not abstract art",
 ]
 
 # ---------------------------------------------------------------------------
@@ -171,21 +193,44 @@ def main():
         sys.exit(1)
 
     idx = rotation_index()
-    prompt = pick_image_prompt(idx)
     caption = pick_caption(idx)
-    seed = idx  # aynı slot'ta tekrar çalışırsa aynı görseli üretir (kararlılık)
-
-    print(f"[social-agent] rotation_index={idx}")
-    print(f"[social-agent] image prompt: {prompt}")
-    print(f"[social-agent] caption:\n{caption}")
-
     out_path = "/tmp/social_post.jpg"
-    try:
-        generate_image(prompt, out_path, seed=seed)
-        print(f"[social-agent] görsel üretildi: {out_path}")
-    except Exception as e:
-        print(f"HATA: görsel üretilemedi: {e}", file=sys.stderr)
-        sys.exit(1)
+
+    # v3 (kullanıcı talebi): her 3 paylaşımdan 1'i GERÇEK bir oyun/marka
+    # görseli (ağ isteği gerektirmez, %100 güvenilir), diğer 2'si AI
+    # üretimi (Pollinations, çeşitlilik için). Bu oran, güvenilirlik ile
+    # çeşitliliği dengelemek için seçildi — kolayca değiştirilebilir.
+    use_real_asset = (idx % 3 == 0)
+
+    if use_real_asset:
+        asset_rel_path = REAL_ASSET_IMAGES[(idx // 3) % len(REAL_ASSET_IMAGES)]
+        # Script'in çalıştığı dizine göre (GitHub Actions checkout sonrası
+        # repo kökü) göreli yol kullanılıyor.
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        asset_full_path = os.path.join(script_dir, asset_rel_path)
+        print(f"[social-agent] GERÇEK varlık kullanılıyor: {asset_rel_path}")
+        try:
+            with open(asset_full_path, "rb") as f:
+                data = f.read()
+            with open(out_path, "wb") as f:
+                f.write(data)
+            print(f"[social-agent] gerçek görsel kopyalandı: {out_path}")
+        except Exception as e:
+            print(f"HATA: gerçek görsel okunamadı: {e}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        prompt = pick_image_prompt(idx)
+        seed = idx  # aynı slot'ta tekrar çalışırsa aynı görseli üretir (kararlılık)
+        print(f"[social-agent] rotation_index={idx}")
+        print(f"[social-agent] AI görsel prompt: {prompt}")
+        try:
+            generate_image(prompt, out_path, seed=seed)
+            print(f"[social-agent] görsel üretildi: {out_path}")
+        except Exception as e:
+            print(f"HATA: görsel üretilemedi: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    print(f"[social-agent] caption:\n{caption}")
 
     try:
         result = send_telegram_photo(bot_token, chat_id, out_path, caption)
